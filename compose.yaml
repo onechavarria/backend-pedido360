@@ -1,16 +1,17 @@
 services:
-  postgres:
-    image: postgres:17-alpine
+  mysql:
+    image: mysql:8.4
     environment:
-      POSTGRES_DB: pedidos360
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MYSQL_DATABASE: pedidos360
+      MYSQL_USER: pedidos360
+      MYSQL_PASSWORD: pedidos360
+      MYSQL_ROOT_PASSWORD: root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - pedidos360_data:/var/lib/postgresql/data
+      - pedidos360_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d pedidos360"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 5s
       timeout: 3s
       retries: 15
@@ -19,13 +20,18 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pedidos360
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: pedidos360
+      MYSQL_USER: pedidos360
+      MYSQL_PASSWORD: pedidos360
+      MYSQL_SSL: "false"
       BACKEND_PUBLIC_URL: http://localhost:3000
       FRONTEND_URL: http://localhost:4200
     ports:
       - "3000:3000"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
 
 volumes:

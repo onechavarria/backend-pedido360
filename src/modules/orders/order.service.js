@@ -24,9 +24,9 @@ function mapOrder(row, items = []) {
 
 async function findOrderItems(orderId, client = { query }) {
   const { rows } = await client.query(
-    `SELECT product_id AS "productoId", name AS nombre, unit_price::float AS "precioUnitario",
-            quantity AS cantidad, image_url AS "imagenUrl", game_code AS "codigoJuego"
-     FROM order_items WHERE order_id = $1 ORDER BY id`,
+    `SELECT product_id AS productoId, name AS nombre, CAST(unit_price AS DOUBLE) AS precioUnitario,
+            quantity AS cantidad, image_url AS imagenUrl, game_code AS codigoJuego
+     FROM order_items WHERE order_id = ? ORDER BY id`,
     [orderId]
   );
   return rows;
@@ -36,17 +36,17 @@ async function findOrderItems(orderId, client = { query }) {
 export async function createOrder(user, data) {
   return withTransaction(async (client) => {
     const paymentResult = await client.query(
-      `SELECT * FROM payments WHERE id = $1 AND user_id = $2 AND status = 'APPROVED' FOR UPDATE`,
+      `SELECT * FROM payments WHERE id = ? AND user_id = ? AND status = 'APPROVED' FOR UPDATE`,
       [data.paymentId, user.id]
     );
     const payment = paymentResult.rows[0];
     if (!payment) throw new AppError(409, 'El pago no existe o no está aprobado.');
-    const alreadyUsed = await client.query('SELECT 1 FROM orders WHERE payment_id = $1', [payment.id]);
+    const alreadyUsed = await client.query('SELECT 1 FROM orders WHERE payment_id = ?', [payment.id]);
     if (alreadyUsed.rowCount) throw new AppError(409, 'El pago ya fue asociado a una orden.');
 
     const items = [];
     for (const requested of data.items) {
-      const result = await client.query('SELECT * FROM products WHERE id = $1 AND active = TRUE FOR UPDATE', [requested.productId]);
+      const result = await client.query('SELECT * FROM products WHERE id = ? AND active = TRUE FOR UPDATE', [requested.productId]);
       const product = result.rows[0];
       if (!product) throw new AppError(404, `Producto ${requested.productId} no encontrado.`);
       if (product.stock < requested.quantity) throw new AppError(409, `Stock insuficiente para ${product.name}.`);
@@ -57,35 +57,35 @@ export async function createOrder(user, data) {
     if (Math.round(Number(payment.amount)) !== Math.round(total)) throw new AppError(409, 'El monto pagado no coincide con el total actual.');
 
     const id = crypto.randomUUID();
-    const { rows } = await client.query(
+    await client.query(
       `INSERT INTO orders
        (id, order_number, user_id, payment_id, status, payment_method, total, customer_email, shipping_address)
-       VALUES ($1,$2,$3,$4,'COMPLETED',$5,$6,$7,$8) RETURNING *`,
+       VALUES (?,?,?,?,'COMPLETED',?,?,?,?)`,
       [id, orderNumber(), user.id, payment.id, `${payment.method} •••• ${payment.last_four ?? '4242'}`, total, user.email, data.shippingAddress]
     );
 
     for (const item of items) {
-      await client.query('UPDATE products SET stock = stock - $1, updated_at = NOW() WHERE id = $2', [item.quantity, item.product.id]);
+      await client.query('UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?', [item.quantity, item.product.id]);
       await client.query(
         `INSERT INTO order_items (order_id, product_id, name, unit_price, quantity, image_url, game_code)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+         VALUES (?,?,?,?,?,?,?)`,
         [id, item.product.id, item.product.name, item.product.price, item.quantity, item.product.image_url, gameCode()]
       );
     }
 
     await clearCart(user.id, client);
+    const { rows } = await client.query('SELECT * FROM orders WHERE id = ?', [id]);
     return mapOrder(rows[0], await findOrderItems(id, client));
   });
 }
 
 export async function getOrder(user, id) {
-  const { rows } = await query('SELECT * FROM orders WHERE id = $1 AND (user_id = $2 OR $3 = \'ADMIN\')', [id, user.id, user.role]);
+  const { rows } = await query('SELECT * FROM orders WHERE id = ? AND (user_id = ? OR ? = \'ADMIN\')', [id, user.id, user.role]);
   if (!rows[0]) throw new AppError(404, 'Pedido no encontrado.');
   return mapOrder(rows[0], await findOrderItems(id));
 }
 
 export async function listOrders(user) {
-  const { rows } = await query('SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC', [user.id]);
+  const { rows } = await query('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC', [user.id]);
   return Promise.all(rows.map(async (row) => mapOrder(row, await findOrderItems(row.id))));
 }
-

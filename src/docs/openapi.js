@@ -42,7 +42,7 @@ export const openapi = {
       get: { tags: ['Autenticación'], summary: 'Lista proveedores sociales habilitados', responses: { 200: { description: 'Proveedores y estado' } } }
     },
     '/api/v1/auth/oauth/{provider}': {
-      get: { tags: ['Autenticación'], summary: 'Comienza OAuth', parameters: [{ name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['google','apple','facebook','github','microsoft'] } }], responses: { 302: { description: 'Redirección al proveedor' }, 503: { description: 'Proveedor no configurado' } } }
+      get: { tags: ['Autenticación'], summary: 'Comienza OAuth', parameters: [{ name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['google','facebook','github'] } }], responses: { 302: { description: 'Redirección al proveedor' }, 503: { description: 'Proveedor no configurado' } } }
     },
     '/api/v1/productos': {
       get: { tags: ['Productos'], summary: 'Lista productos', parameters: [{ name: 'search', in: 'query', schema: { type: 'string' } }], responses: { 200: { description: 'Catálogo', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Product' } } } } } } },
@@ -72,4 +72,3 @@ export const openapi = {
     }
   }
 };
-

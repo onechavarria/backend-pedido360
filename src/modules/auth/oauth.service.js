@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { env } from '../../config/env.js';
 import { query, withTransaction } from '../../config/database.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -22,19 +21,8 @@ const providers = {
   },
   facebook: {
     clientId: env.FACEBOOK_CLIENT_ID, clientSecret: env.FACEBOOK_CLIENT_SECRET,
-    authorize: 'https://www.facebook.com/v21.0/dialog/oauth', token: 'https://graph.facebook.com/v21.0/oauth/access_token',
-    scope: 'email public_profile', userInfo: 'https://graph.facebook.com/me?fields=id,name,email,picture'
-  },
-  microsoft: {
-    clientId: env.MICROSOFT_CLIENT_ID, clientSecret: env.MICROSOFT_CLIENT_SECRET,
-    authorize: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-    token: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', scope: 'openid email profile User.Read',
-    userInfo: 'https://graph.microsoft.com/v1.0/me'
-  },
-  apple: {
-    clientId: env.APPLE_CLIENT_ID, clientSecret: env.APPLE_CLIENT_SECRET,
-    authorize: 'https://appleid.apple.com/auth/authorize', token: 'https://appleid.apple.com/auth/token',
-    scope: 'name email', responseMode: 'form_post'
+    authorize: 'https://www.facebook.com/v25.0/dialog/oauth', token: 'https://graph.facebook.com/v25.0/oauth/access_token',
+    scope: 'email public_profile', userInfo: 'https://graph.facebook.com/v25.0/me?fields=id,name,email,picture'
   }
 };
 
@@ -58,7 +46,6 @@ export async function buildAuthorizationUrl(name) {
     scope: config.scope,
     state: await createOAuthState(name)
   });
-  if (config.responseMode) params.set('response_mode', config.responseMode);
   return `${config.authorize}?${params}`;
 }
 
@@ -86,12 +73,6 @@ async function githubEmail(accessToken) {
 }
 
 async function fetchProfile(name, tokens) {
-  if (name === 'apple') {
-    const jwks = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
-    const { payload } = await jwtVerify(tokens.id_token, jwks, { issuer: 'https://appleid.apple.com', audience: env.APPLE_CLIENT_ID });
-    return { id: payload.sub, name: payload.email?.split('@')[0] ?? 'Usuario Apple', email: payload.email };
-  }
-
   const config = providerConfig(name);
   const response = await fetch(config.userInfo, {
     headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json', 'User-Agent': 'Pedidos360' }
@@ -100,7 +81,6 @@ async function fetchProfile(name, tokens) {
   const data = await response.json();
 
   if (name === 'github') return { id: String(data.id), name: data.name ?? data.login, email: data.email ?? await githubEmail(tokens.access_token), avatarUrl: data.avatar_url };
-  if (name === 'microsoft') return { id: data.id, name: data.displayName, email: data.mail ?? data.userPrincipalName };
   if (name === 'facebook') return { id: data.id, name: data.name, email: data.email, avatarUrl: data.picture?.data?.url };
   return { id: data.sub, name: data.name, email: data.email, avatarUrl: data.picture };
 }
@@ -118,7 +98,7 @@ export async function completeOAuth(name, code, state) {
     let user = await findUserByEmail(profile.email, client);
     if (!user) {
       user = await createUser({ id: crypto.randomUUID(), name: profile.name, email: profile.email, avatarUrl: profile.avatarUrl }, client);
-      await client.query('INSERT INTO carts (id, user_id) VALUES ($1, $2)', [crypto.randomUUID(), user.id]);
+      await client.query('INSERT INTO carts (id, user_id) VALUES (?, ?)', [crypto.randomUUID(), user.id]);
     }
     await linkOAuthAccount(user.id, name, profile.id, client);
     return user;

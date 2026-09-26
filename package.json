@@ -1,7 +1,7 @@
 {
   "name": "backend-pedido360",
   "version": "1.0.0",
-  "description": "API REST modular de Pedidos360 construida con Node.js, Express y PostgreSQL.",
+  "description": "API REST modular de Pedidos360 construida con Node.js, Express y MySQL.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -26,7 +26,7 @@
     "helmet": "^8.1.0",
     "jose": "^6.1.0",
     "morgan": "^1.10.1",
-    "pg": "^8.16.3",
+    "mysql2": "^3.15.3",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.1.8"
   },

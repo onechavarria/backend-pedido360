@@ -7,7 +7,12 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   FRONTEND_URL: z.string().url().default('http://localhost:4200'),
   BACKEND_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
-  DATABASE_URL: z.string().min(1),
+  MYSQL_HOST: z.string().min(1).default('localhost'),
+  MYSQL_PORT: z.coerce.number().int().positive().default(3306),
+  MYSQL_DATABASE: z.string().min(1).default('pedidos360'),
+  MYSQL_USER: z.string().min(1),
+  MYSQL_PASSWORD: z.string().default(''),
+  MYSQL_SSL: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('15m'),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(7),
@@ -16,11 +21,7 @@ const schema = z.object({
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   FACEBOOK_CLIENT_ID: z.string().optional(),
-  FACEBOOK_CLIENT_SECRET: z.string().optional(),
-  MICROSOFT_CLIENT_ID: z.string().optional(),
-  MICROSOFT_CLIENT_SECRET: z.string().optional(),
-  APPLE_CLIENT_ID: z.string().optional(),
-  APPLE_CLIENT_SECRET: z.string().optional()
+  FACEBOOK_CLIENT_SECRET: z.string().optional()
 });
 
 const parsed = schema.safeParse(process.env);

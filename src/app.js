@@ -67,6 +67,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Publica la documentación visual de Swagger.
+// Publica la documentación visual de Swagger.
 app.use(
   '/api/docs',
   swaggerUi.serve,

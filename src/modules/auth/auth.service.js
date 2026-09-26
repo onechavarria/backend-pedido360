@@ -19,7 +19,7 @@ export async function register(data) {
       email: data.email,
       passwordHash: await hashPassword(data.password)
     }, client);
-    await client.query('INSERT INTO carts (id, user_id) VALUES ($1, $2)', [crypto.randomUUID(), created.id]);
+    await client.query('INSERT INTO carts (id, user_id) VALUES (?, ?)', [crypto.randomUUID(), created.id]);
     return created;
   });
 
@@ -39,7 +39,7 @@ export async function issueSession(user) {
   const refreshToken = randomToken();
   await query(
     `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES (?, ?, ?, ?)`,
     [crypto.randomUUID(), user.id, hashToken(refreshToken), refreshExpiresAt()]
   );
 
@@ -57,19 +57,19 @@ export async function refreshSession(rawToken) {
   return withTransaction(async (client) => {
     const { rows } = await client.query(
       `SELECT * FROM refresh_tokens
-       WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()
+       WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(3)
        FOR UPDATE`,
       [hashToken(rawToken)]
     );
     const stored = rows[0];
     if (!stored) throw new AppError(401, 'La sesión venció. Inicia sesión nuevamente.');
 
-    await client.query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1', [stored.id]);
+    await client.query('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP(3) WHERE id = ?', [stored.id]);
     const user = await findUserById(stored.user_id, client);
 
     const nextRefresh = randomToken();
     await client.query(
-      'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)',
       [crypto.randomUUID(), user.id, hashToken(nextRefresh), refreshExpiresAt()]
     );
     return { accessToken: await createAccessToken(toPublicUser(user)), refreshToken: nextRefresh, user: toPublicUser(user) };
@@ -77,14 +77,14 @@ export async function refreshSession(rawToken) {
 }
 
 export async function revokeSession(rawToken) {
-  if (rawToken) await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1', [hashToken(rawToken)]);
+  if (rawToken) await query('UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP(3) WHERE token_hash = ?', [hashToken(rawToken)]);
 }
 
 // El código OAuth solo puede canjearse una vez y vence en cinco minutos.
 export async function createAuthCode(userId) {
   const code = randomToken();
   await query(
-    'INSERT INTO auth_codes (code_hash, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'5 minutes\')',
+    'INSERT INTO auth_codes (code_hash, user_id, expires_at) VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 5 MINUTE))',
     [hashToken(code), userId]
   );
   return code;
@@ -93,18 +93,22 @@ export async function createAuthCode(userId) {
 export async function exchangeAuthCode(code) {
   return withTransaction(async (client) => {
     const { rows } = await client.query(
-      `UPDATE auth_codes SET consumed_at = NOW()
-       WHERE code_hash = $1 AND consumed_at IS NULL AND expires_at > NOW()
-       RETURNING user_id`,
+      `SELECT user_id FROM auth_codes
+       WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP(3)
+       FOR UPDATE`,
       [hashToken(code)]
     );
     if (!rows[0]) throw new AppError(401, 'El código de acceso no es válido o ya fue usado.');
+    await client.query(
+      'UPDATE auth_codes SET consumed_at = CURRENT_TIMESTAMP(3) WHERE code_hash = ?',
+      [hashToken(code)]
+    );
     const user = await findUserById(rows[0].user_id, client);
 
     // Se crea la sesión manualmente usando el mismo cliente de la transacción.
     const refreshToken = randomToken();
     await client.query(
-      'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)',
       [crypto.randomUUID(), user.id, hashToken(refreshToken), refreshExpiresAt()]
     );
     return { accessToken: await createAccessToken(toPublicUser(user)), refreshToken, user: toPublicUser(user) };
@@ -114,4 +118,3 @@ export async function exchangeAuthCode(code) {
 export async function closeDatabase() {
   await pool.end();
 }
-

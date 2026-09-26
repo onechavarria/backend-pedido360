@@ -4,7 +4,7 @@ import { env } from './config/env.js';
 
 let server;
 
-// Comprueba PostgreSQL e inicia el servidor sin usar top-level await.
+// Comprueba MySQL e inicia el servidor sin usar top-level await.
 async function startServer() {
   await pool.query('SELECT 1');
 
@@ -14,7 +14,7 @@ async function startServer() {
   });
 }
 
-// Cierra correctamente el servidor y la conexión con PostgreSQL.
+// Cierra correctamente el servidor y la conexión con MySQL.
 async function shutdown(signal) {
   console.log(`\n${signal}: cerrando servidor...`);
 

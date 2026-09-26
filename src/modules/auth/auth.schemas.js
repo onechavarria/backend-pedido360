@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const registerSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.email().transform((value) => value.toLowerCase()),
-  password: z.string().min(8).max(72).regex(/[A-Z]/, 'Debe incluir una mayúscula.').regex(/[0-9]/, 'Debe incluir un número.')
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.').max(72)
 });
 
 export const loginSchema = z.object({
@@ -14,4 +14,3 @@ export const loginSchema = z.object({
 });
 
 export const exchangeSchema = z.object({ code: z.string().min(20) });
-
